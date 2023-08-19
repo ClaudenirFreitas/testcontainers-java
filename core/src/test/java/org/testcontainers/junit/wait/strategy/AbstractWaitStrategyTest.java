@@ -3,7 +3,6 @@ package org.testcontainers.junit.wait.strategy;
 import org.jetbrains.annotations.NotNull;
 import org.junit.Before;
 import org.rnorth.ducttape.RetryCountExceededException;
-import org.rnorth.visibleassertions.VisibleAssertions;
 import org.testcontainers.TestImages;
 import org.testcontainers.containers.ContainerLaunchException;
 import org.testcontainers.containers.GenericContainer;
@@ -12,12 +11,11 @@ import org.testcontainers.containers.wait.strategy.WaitStrategy;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 /**
  * Common test methods for {@link WaitStrategy} implementations.
- *
- * @author Pete Cornish {@literal <outofcoffee@gmail.com>}
  */
 public abstract class AbstractWaitStrategyTest<W extends WaitStrategy> {
 
@@ -109,11 +107,9 @@ public abstract class AbstractWaitStrategyTest<W extends WaitStrategy> {
      */
     protected void waitUntilReadyAndTimeout(GenericContainer<?> container) {
         // start() blocks until successful or timeout
-        VisibleAssertions.assertThrows(
-            "an exception is thrown when timeout occurs (" + WAIT_TIMEOUT_MILLIS + "ms)",
-            ContainerLaunchException.class,
-            container::start
-        );
+        assertThat(catchThrowable(container::start))
+            .as("an exception is thrown when timeout occurs (" + WAIT_TIMEOUT_MILLIS + "ms)")
+            .isInstanceOf(ContainerLaunchException.class);
     }
 
     /**
@@ -125,9 +121,8 @@ public abstract class AbstractWaitStrategyTest<W extends WaitStrategy> {
         // start() blocks until successful or timeout
         container.start();
 
-        assertTrue(
-            String.format("Expected container to be ready after timeout of %sms", WAIT_TIMEOUT_MILLIS),
-            ready.get()
-        );
+        assertThat(ready)
+            .as(String.format("Expected container to be ready after timeout of %sms", WAIT_TIMEOUT_MILLIS))
+            .isTrue();
     }
 }

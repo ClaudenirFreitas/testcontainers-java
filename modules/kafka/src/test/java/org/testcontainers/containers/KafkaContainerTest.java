@@ -16,6 +16,7 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.Test;
 import org.rnorth.ducttape.unreliables.Unreliables;
 import org.testcontainers.Testcontainers;
+import org.testcontainers.images.builder.Transferable;
 import org.testcontainers.utility.DockerImageName;
 
 import java.time.Duration;
@@ -30,6 +31,8 @@ import static org.assertj.core.api.Assertions.tuple;
 public class KafkaContainerTest {
 
     private static final DockerImageName KAFKA_TEST_IMAGE = DockerImageName.parse("confluentinc/cp-kafka:6.2.1");
+
+    private static final DockerImageName KAFKA_KRAFT_TEST_IMAGE = DockerImageName.parse("confluentinc/cp-kafka:7.0.1");
 
     private static final DockerImageName ZOOKEEPER_TEST_IMAGE = DockerImageName.parse(
         "confluentinc/cp-zookeeper:4.0.0"
@@ -72,7 +75,7 @@ public class KafkaContainerTest {
         try (
             Network network = Network.newNetwork();
             // withExternalZookeeper {
-            KafkaContainer kafka = new KafkaContainer(KAFKA_TEST_IMAGE)
+            KafkaContainer kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:6.2.1"))
                 .withNetwork(network)
                 .withExternalZookeeper("zookeeper:2181");
             // }
@@ -81,17 +84,18 @@ public class KafkaContainerTest {
                 .withNetwork(network)
                 .withNetworkAliases("zookeeper")
                 .withEnv("ZOOKEEPER_CLIENT_PORT", "2181");
-            // withKafkaNetwork {
-            GenericContainer<?> application = new GenericContainer<>(DockerImageName.parse("alpine"))
-                .withNetwork(network)
-                // }
-                .withNetworkAliases("dummy")
-                .withCommand("sleep 10000")
         ) {
             zookeeper.start();
             kafka.start();
-            application.start();
 
+            testKafkaFunctionality(kafka.getBootstrapServers());
+        }
+    }
+
+    @Test
+    public void testConfluentPlatformVersion7() throws Exception {
+        try (KafkaContainer kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.2.2"))) {
+            kafka.start();
             testKafkaFunctionality(kafka.getBootstrapServers());
         }
     }
@@ -119,6 +123,100 @@ public class KafkaContainerTest {
         try (KafkaContainer kafka = new KafkaContainer(KAFKA_TEST_IMAGE).withNetwork(Network.newNetwork())) {
             kafka.start();
             testKafkaFunctionality(kafka.getBootstrapServers());
+        }
+    }
+
+    @Test
+    public void testUsageKraftBeforeConfluentPlatformVersion74() throws Exception {
+        try (
+            KafkaContainer kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.0.1")).withKraft()
+        ) {
+            kafka.start();
+            testKafkaFunctionality(kafka.getBootstrapServers());
+        }
+    }
+
+    @Test
+    public void testUsageKraftAfterConfluentPlatformVersion74() throws Exception {
+        try (
+            // withKraftMode {
+            KafkaContainer kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.4.0")).withKraft()
+            // }
+        ) {
+            kafka.start();
+            testKafkaFunctionality(kafka.getBootstrapServers());
+        }
+    }
+
+    @Test
+    public void testNotSupportedKraftVersion() {
+        try (
+            KafkaContainer kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:6.2.1")).withKraft()
+        ) {} catch (IllegalArgumentException e) {
+            assertThat(e.getMessage())
+                .isEqualTo(
+                    "Provided Confluent Platform's version 6.2.1 is not supported in Kraft mode (must be 7.0.0 or above)"
+                );
+        }
+    }
+
+    @Test
+    public void testKraftZookeeperMutualExclusion() {
+        try (
+            KafkaContainer kafka = new KafkaContainer(KAFKA_KRAFT_TEST_IMAGE).withKraft().withExternalZookeeper("")
+        ) {} catch (IllegalStateException e) {
+            assertThat(e.getMessage()).isEqualTo("Cannot configure Zookeeper when using Kraft mode");
+        }
+
+        try (
+            KafkaContainer kafka = new KafkaContainer(KAFKA_KRAFT_TEST_IMAGE).withExternalZookeeper("").withKraft()
+        ) {} catch (IllegalStateException e) {
+            assertThat(e.getMessage()).isEqualTo("Cannot configure Kraft mode when Zookeeper configured");
+        }
+
+        try (
+            KafkaContainer kafka = new KafkaContainer(KAFKA_KRAFT_TEST_IMAGE).withKraft().withEmbeddedZookeeper()
+        ) {} catch (IllegalStateException e) {
+            assertThat(e.getMessage()).isEqualTo("Cannot configure Zookeeper when using Kraft mode");
+        }
+    }
+
+    @Test
+    public void testKraftPrecedenceOverEmbeddedZookeeper() throws Exception {
+        try (KafkaContainer kafka = new KafkaContainer(KAFKA_KRAFT_TEST_IMAGE).withEmbeddedZookeeper().withKraft()) {
+            kafka.start();
+            testKafkaFunctionality(kafka.getBootstrapServers());
+        }
+    }
+
+    @Test
+    public void testUsageWithListener() throws Exception {
+        try (
+            Network network = Network.newNetwork();
+            // registerListener {
+            KafkaContainer kafka = new KafkaContainer(KAFKA_KRAFT_TEST_IMAGE)
+                .withListener(() -> "kafka:19092")
+                .withNetwork(network);
+            // }
+            // createKCatContainer {
+            GenericContainer<?> kcat = new GenericContainer<>("confluentinc/cp-kcat:7.4.1")
+                .withCreateContainerCmdModifier(cmd -> {
+                    cmd.withEntrypoint("sh");
+                })
+                .withCopyToContainer(Transferable.of("Message produced by kcat"), "/data/msgs.txt")
+                .withNetwork(network)
+                .withCommand("-c", "tail -f /dev/null")
+            // }
+        ) {
+            kafka.start();
+            kcat.start();
+            // produceConsumeMessage {
+            kcat.execInContainer("kcat", "-b", "kafka:19092", "-t", "msgs", "-P", "-l", "/data/msgs.txt");
+            String stdout = kcat
+                .execInContainer("kcat", "-b", "kafka:19092", "-C", "-t", "msgs", "-c", "1")
+                .getStdout();
+            // }
+            assertThat(stdout).contains("Message produced by kcat");
         }
     }
 

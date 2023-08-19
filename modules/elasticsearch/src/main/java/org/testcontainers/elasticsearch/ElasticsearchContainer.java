@@ -5,6 +5,7 @@ import com.github.dockerjava.api.exception.NotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.LogMessageWaitStrategy;
 import org.testcontainers.utility.Base58;
@@ -22,8 +23,15 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
 
 /**
- * Represents an elasticsearch docker instance which exposes by default port 9200 and 9300 (transport.tcp.port)
- * The docker image is by default fetched from docker.elastic.co/elasticsearch/elasticsearch
+ * Testcontainers implementation for Elasticsearch.
+ * <p>
+ * Supported image: {@code docker.elastic.co/elasticsearch/elasticsearch}
+ * <p>
+ * Exposed ports:
+ * <ul>
+ *     <li>HTTP: 9200</li>
+ *     <li>TCP Transport: 9300</li>
+ * </ul>
  */
 @Slf4j
 public class ElasticsearchContainer extends GenericContainer<ElasticsearchContainer> {
@@ -71,7 +79,7 @@ public class ElasticsearchContainer extends GenericContainer<ElasticsearchContai
     private String certPath = "/usr/share/elasticsearch/config/certs/http_ca.crt";
 
     /**
-     * @deprecated use {@link ElasticsearchContainer(DockerImageName)} instead
+     * @deprecated use {@link #ElasticsearchContainer(DockerImageName)} instead
      */
     @Deprecated
     public ElasticsearchContainer() {
@@ -95,9 +103,17 @@ public class ElasticsearchContainer extends GenericContainer<ElasticsearchContai
         dockerImageName.assertCompatibleWith(DEFAULT_IMAGE_NAME, DEFAULT_OSS_IMAGE_NAME);
         this.isOss = dockerImageName.isCompatibleWith(DEFAULT_OSS_IMAGE_NAME);
 
-        logger().info("Starting an elasticsearch container using [{}]", dockerImageName);
         withNetworkAliases("elasticsearch-" + Base58.randomString(6));
         withEnv("discovery.type", "single-node");
+        // disable disk threshold checks
+        withEnv("cluster.routing.allocation.disk.threshold_enabled", "false");
+        // Sets default memory of elasticsearch instance to 2GB
+        // Spaces are deliberate to allow user to define additional jvm options as elasticsearch resolves option files lexicographically
+        withClasspathResourceMapping(
+            "elasticsearch-default-memory-vm.options",
+            "/usr/share/elasticsearch/config/jvm.options.d/ elasticsearch-default-memory-vm.options",
+            BindMode.READ_ONLY
+        );
         addExposedPorts(ELASTICSEARCH_DEFAULT_PORT, ELASTICSEARCH_DEFAULT_TCP_PORT);
         this.isAtLeastMajorVersion8 =
             new ComparableVersion(dockerImageName.getVersionPart()).isGreaterThanOrEqualTo("8.0.0");

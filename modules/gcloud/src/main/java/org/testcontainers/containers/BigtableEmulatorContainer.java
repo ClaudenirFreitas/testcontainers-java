@@ -5,15 +5,18 @@ import org.testcontainers.utility.DockerImageName;
 
 /**
  * A Bigtable container that relies in google cloud sdk.
- *
+ * <p>
+ * Supported images: {@code gcr.io/google.com/cloudsdktool/google-cloud-cli}, {@code gcr.io/google.com/cloudsdktool/cloud-sdk}
+ * <p>
  * Default port is 9000.
- *
- * @author Eddú Meléndez
- * @author Ray Tsang
  */
 public class BigtableEmulatorContainer extends GenericContainer<BigtableEmulatorContainer> {
 
     private static final DockerImageName DEFAULT_IMAGE_NAME = DockerImageName.parse(
+        "gcr.io/google.com/cloudsdktool/google-cloud-cli"
+    );
+
+    private static final DockerImageName CLOUD_SDK_IMAGE_NAME = DockerImageName.parse(
         "gcr.io/google.com/cloudsdktool/cloud-sdk"
     );
 
@@ -21,9 +24,13 @@ public class BigtableEmulatorContainer extends GenericContainer<BigtableEmulator
 
     private static final int PORT = 9000;
 
+    public BigtableEmulatorContainer(String image) {
+        this(DockerImageName.parse(image));
+    }
+
     public BigtableEmulatorContainer(final DockerImageName dockerImageName) {
         super(dockerImageName);
-        dockerImageName.assertCompatibleWith(DEFAULT_IMAGE_NAME);
+        dockerImageName.assertCompatibleWith(DEFAULT_IMAGE_NAME, CLOUD_SDK_IMAGE_NAME);
 
         withExposedPorts(PORT);
         setWaitStrategy(new LogMessageWaitStrategy().withRegEx("(?s).*running.*$"));

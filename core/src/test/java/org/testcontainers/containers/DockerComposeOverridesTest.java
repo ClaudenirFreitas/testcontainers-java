@@ -8,6 +8,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 import org.rnorth.ducttape.unreliables.Unreliables;
+import org.testcontainers.utility.CommandLine;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -15,9 +16,6 @@ import java.io.InputStreamReader;
 import java.net.Socket;
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
-
-import static org.rnorth.visibleassertions.VisibleAssertions.info;
-import static org.rnorth.visibleassertions.VisibleAssertions.pass;
 
 @RunWith(Parameterized.class)
 public class DockerComposeOverridesTest {
@@ -64,7 +62,7 @@ public class DockerComposeOverridesTest {
     public void setUp() {
         if (localMode) {
             Assumptions
-                .assumeThat(LocalDockerCompose.executableExists())
+                .assumeThat(CommandLine.executableExists(DockerComposeContainer.COMPOSE_EXECUTABLE))
                 .as("docker-compose executable exists")
                 .isTrue();
         }
@@ -100,11 +98,9 @@ public class DockerComposeOverridesTest {
                     while (br.ready()) {
                         String line = br.readLine();
                         if (line.contains(expectedEnvVar)) {
-                            pass("Mapped environment variable was found");
                             return true;
                         }
                     }
-                    info("Mapped environment variable was not found yet - process probably not ready");
                     Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
                     return false;
                 }

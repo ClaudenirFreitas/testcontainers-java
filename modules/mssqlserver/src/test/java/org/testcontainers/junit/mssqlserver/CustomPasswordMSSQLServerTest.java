@@ -10,13 +10,11 @@ import org.testcontainers.containers.MSSQLServerContainer;
 import java.util.Arrays;
 import java.util.Collection;
 
-import static org.rnorth.visibleassertions.VisibleAssertions.fail;
+import static org.assertj.core.api.Assertions.fail;
 
 /**
  * Tests if the password passed to the container satisfied the password policy described at
  * https://docs.microsoft.com/en-us/sql/relational-databases/security/password-policy?view=sql-server-2017
- *
- * @author Enrico Costanzi
  */
 @RunWith(Parameterized.class)
 public class CustomPasswordMSSQLServerTest {

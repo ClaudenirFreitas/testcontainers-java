@@ -10,8 +10,7 @@ import org.testcontainers.utility.MountableFile;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.rnorth.visibleassertions.VisibleAssertions.assertFalse;
-import static org.rnorth.visibleassertions.VisibleAssertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class CopyFileToContainerTest {
 
@@ -28,7 +27,7 @@ public class CopyFileToContainerTest {
         ) {
             container.start();
             String filesList = container.execInContainer("ls", "/tmp/mappable-resource").getStdout();
-            assertTrue("file list contains the file", filesList.contains(fileName));
+            assertThat(filesList).as("file list contains the file").contains(fileName);
         }
     }
 
@@ -41,7 +40,7 @@ public class CopyFileToContainerTest {
         ) {
             container.start();
             String filesList = container.execInContainer("ls", "/tmp/mappable-resource").getStdout();
-            assertTrue("file list contains the file", filesList.contains(fileName));
+            assertThat(filesList).as("file list contains the file").contains(fileName);
         }
     }
 
@@ -50,16 +49,13 @@ public class CopyFileToContainerTest {
         String resource = "/test_copy_to_container.txt";
         GenericContainer<?> container = new GenericContainer<>(TestImages.TINY_IMAGE)
             .withClasspathResourceMapping(resource, "/readOnly", BindMode.READ_ONLY)
-            .withClasspathResourceMapping(resource, "/readOnlyNoSelinux", BindMode.READ_ONLY)
             .withClasspathResourceMapping(resource, "/readOnlyShared", BindMode.READ_ONLY, SelinuxContext.SHARED)
             .withClasspathResourceMapping(resource, "/readWrite", BindMode.READ_WRITE);
 
         Map<MountableFile, String> copyMap = container.getCopyToFileContainerPathMap();
-        assertTrue("uses copy for read-only", copyMap.containsValue("/readOnly"));
-        assertTrue("uses copy for read-only and no Selinux", copyMap.containsValue("/readOnlyNoSelinux"));
-
-        assertFalse("uses mount for read-only with Selinux", copyMap.containsValue("/readOnlyShared"));
-        assertFalse("uses mount for read-write", copyMap.containsValue("/readWrite"));
+        assertThat(copyMap).as("uses copy for read-only").containsValue("/readOnly");
+        assertThat(copyMap).as("uses copy for read-only with Selinux").containsValue("/readOnlyShared");
+        assertThat(copyMap).as("uses mount for read-write").doesNotContainValue("/readWrite");
     }
 
     @Test
@@ -72,7 +68,7 @@ public class CopyFileToContainerTest {
         ) {
             container.start();
             String filesList = container.execInContainer("ls", "/a/b/c/").getStdout();
-            assertTrue("file list contains the file", filesList.contains("file"));
+            assertThat(filesList).as("file list contains the file").contains("file");
         }
     }
 }

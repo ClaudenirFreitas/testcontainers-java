@@ -7,9 +7,7 @@ import org.testcontainers.DockerClientFactory;
 
 import java.net.URI;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class DockerClientConfigUtilsTest {
 
@@ -21,40 +19,44 @@ public class DockerClientConfigUtilsTest {
 
         String actual = DockerClientProviderStrategy.resolveDockerHostIpAddress(
             client,
-            URI.create("unix:///var/run/docker.sock")
+            URI.create("unix:///var/run/docker.sock"),
+            true
         );
-        assertEquals("localhost", actual);
+        assertThat(actual).isEqualTo("localhost");
     }
 
     @Test
     public void getDockerHostIpAddressShouldReturnDockerHostIpWhenHttpsUri() {
         String actual = DockerClientProviderStrategy.resolveDockerHostIpAddress(
             client,
-            URI.create("http://12.23.34.45")
+            URI.create("http://12.23.34.45"),
+            true
         );
-        assertEquals("12.23.34.45", actual);
+        assertThat(actual).isEqualTo("12.23.34.45");
     }
 
     @Test
     public void getDockerHostIpAddressShouldReturnDockerHostIpWhenTcpUri() {
         String actual = DockerClientProviderStrategy.resolveDockerHostIpAddress(
             client,
-            URI.create("tcp://12.23.34.45")
+            URI.create("tcp://12.23.34.45"),
+            true
         );
-        assertEquals("12.23.34.45", actual);
+        assertThat(actual).isEqualTo("12.23.34.45");
     }
 
     @Test
     public void getDockerHostIpAddressShouldReturnNullWhenUnsupportedUriScheme() {
         String actual = DockerClientProviderStrategy.resolveDockerHostIpAddress(
             client,
-            URI.create("gopher://12.23.34.45")
+            URI.create("gopher://12.23.34.45"),
+            true
         );
-        assertNull(actual);
+        assertThat(actual).isNull();
     }
 
     @Test(timeout = 5_000)
     public void getDefaultGateway() {
-        assertNotNull(DockerClientConfigUtils.getDefaultGateway());
+        assertThat(DockerClientConfigUtils.getDefaultGateway()).isNotNull();
     }
 }

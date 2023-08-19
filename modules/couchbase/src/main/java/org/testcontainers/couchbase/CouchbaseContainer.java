@@ -48,7 +48,14 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
- * The couchbase container initializes and configures a Couchbase Server single node cluster.
+ * Testcontainers implementation for Couchbase.
+ * <p>
+ * Supported image: {@code couchbase/server}
+ * <p>
+ * Exposed ports:
+ * <ul>
+ *     <li>Console: 8091</li>
+ * </ul>
  * <p>
  * Note that it does not depend on a specific couchbase SDK, so it can be used with both the Java SDK 2 and 3 as well
  * as the Scala SDK 1 or newer. We recommend using the latest and greatest SDKs for the best experience.
@@ -118,7 +125,7 @@ public class CouchbaseContainer extends GenericContainer<CouchbaseContainer> {
 
     /**
      * Creates a new couchbase container with the default image and version.
-     * @deprecated use {@link CouchbaseContainer(DockerImageName)} instead
+     * @deprecated use {@link #CouchbaseContainer(DockerImageName)} instead
      */
     @Deprecated
     public CouchbaseContainer() {
@@ -241,22 +248,7 @@ public class CouchbaseContainer extends GenericContainer<CouchbaseContainer> {
     protected void configure() {
         super.configure();
 
-        addExposedPorts(
-            MGMT_PORT,
-            MGMT_SSL_PORT,
-            VIEW_PORT,
-            VIEW_SSL_PORT,
-            QUERY_PORT,
-            QUERY_SSL_PORT,
-            SEARCH_PORT,
-            SEARCH_SSL_PORT,
-            ANALYTICS_PORT,
-            ANALYTICS_SSL_PORT,
-            KV_PORT,
-            KV_SSL_PORT,
-            EVENTING_PORT,
-            EVENTING_SSL_PORT
-        );
+        exposePorts();
 
         WaitAllStrategy waitStrategy = new WaitAllStrategy();
 
@@ -317,6 +309,34 @@ public class CouchbaseContainer extends GenericContainer<CouchbaseContainer> {
         }
 
         waitingFor(waitStrategy);
+    }
+
+    /**
+     * Configures the exposed ports based on the enabled services.
+     * <p>
+     * Note that the MGMT_PORTs are always enabled since there must always be a cluster
+     * manager. Also, the View engine ports are implicitly available on the same nodes
+     * where the KV service is enabled - it is not possible to configure them individually.
+     */
+    private void exposePorts() {
+        addExposedPorts(MGMT_PORT, MGMT_SSL_PORT);
+
+        if (enabledServices.contains(CouchbaseService.KV)) {
+            addExposedPorts(KV_PORT, KV_SSL_PORT);
+            addExposedPorts(VIEW_PORT, VIEW_SSL_PORT);
+        }
+        if (enabledServices.contains(CouchbaseService.ANALYTICS)) {
+            addExposedPorts(ANALYTICS_PORT, ANALYTICS_SSL_PORT);
+        }
+        if (enabledServices.contains(CouchbaseService.QUERY)) {
+            addExposedPorts(QUERY_PORT, QUERY_SSL_PORT);
+        }
+        if (enabledServices.contains(CouchbaseService.SEARCH)) {
+            addExposedPorts(SEARCH_PORT, SEARCH_SSL_PORT);
+        }
+        if (enabledServices.contains(CouchbaseService.EVENTING)) {
+            addExposedPorts(EVENTING_PORT, EVENTING_SSL_PORT);
+        }
     }
 
     @Override
@@ -560,6 +580,7 @@ public class CouchbaseContainer extends GenericContainer<CouchbaseContainer> {
                     .add("name", bucket.getName())
                     .add("ramQuotaMB", Integer.toString(bucket.getQuota()))
                     .add("flushEnabled", bucket.hasFlushEnabled() ? "1" : "0")
+                    .add("replicaNumber", Integer.toString(bucket.getNumReplicas()))
                     .build(),
                 true
             );

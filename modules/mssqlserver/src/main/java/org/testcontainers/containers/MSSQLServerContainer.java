@@ -1,6 +1,5 @@
 package org.testcontainers.containers;
 
-import com.google.common.collect.Sets;
 import org.testcontainers.utility.DockerImageName;
 import org.testcontainers.utility.LicenseAcceptance;
 
@@ -9,7 +8,11 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
- * @author Stefan Hufschmidt
+ * Testcontainers implementation for Microsoft SQL Server.
+ * <p>
+ * Supported image: {@code mcr.microsoft.com/mssql/server}
+ * <p>
+ * Exposed ports: 1433
  */
 public class MSSQLServerContainer<SELF extends MSSQLServerContainer<SELF>> extends JdbcDatabaseContainer<SELF> {
 
@@ -24,7 +27,7 @@ public class MSSQLServerContainer<SELF extends MSSQLServerContainer<SELF>> exten
 
     public static final Integer MS_SQL_SERVER_PORT = 1433;
 
-    static final String DEFAULT_USER = "SA";
+    static final String DEFAULT_USER = "sa";
 
     static final String DEFAULT_PASSWORD = "A_Str0ng_Required_Password";
 
@@ -42,7 +45,7 @@ public class MSSQLServerContainer<SELF extends MSSQLServerContainer<SELF>> exten
     };
 
     /**
-     * @deprecated use {@link MSSQLServerContainer(DockerImageName)} instead
+     * @deprecated use {@link #MSSQLServerContainer(DockerImageName)} instead
      */
     @Deprecated
     public MSSQLServerContainer() {
@@ -64,7 +67,7 @@ public class MSSQLServerContainer<SELF extends MSSQLServerContainer<SELF>> exten
 
     @Override
     public Set<Integer> getLivenessCheckPortNumbers() {
-        return Sets.newHashSet(MS_SQL_SERVER_PORT);
+        return super.getLivenessCheckPortNumbers();
     }
 
     @Override

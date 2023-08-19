@@ -14,7 +14,7 @@ import org.testcontainers.utility.MountableFile;
 import java.util.concurrent.TimeUnit;
 
 @Testcontainers
-public class DemoHiveMQContainerIT {
+class DemoHiveMQContainerIT {
 
     // ceVersion {
     @Container
@@ -25,7 +25,7 @@ public class DemoHiveMQContainerIT {
 
     // hiveEEVersion {
     @Container
-    final HiveMQContainer hivemqEe = new HiveMQContainer(DockerImageName.parse("hivemq/hivemq-ce").withTag("2021.3"))
+    final HiveMQContainer hivemqEe = new HiveMQContainer(DockerImageName.parse("hivemq/hivemq4").withTag("4.7.4"))
         .withLogLevel(Level.DEBUG);
 
     // }
@@ -33,7 +33,7 @@ public class DemoHiveMQContainerIT {
     // eeVersionWithControlCenter {
     @Container
     final HiveMQContainer hivemqEeWithControlCenter = new HiveMQContainer(
-        DockerImageName.parse("hivemq/hivemq-ce").withTag("2021.3")
+        DockerImageName.parse("hivemq/hivemq4").withTag("4.7.4")
     )
         .withLogLevel(Level.DEBUG)
         .withHiveMQConfig(MountableFile.forClasspathResource("/inMemoryConfig.xml"))
@@ -49,7 +49,7 @@ public class DemoHiveMQContainerIT {
 
     @Test
     @Timeout(value = 3, unit = TimeUnit.MINUTES)
-    public void test() throws Exception {
+    void test() throws Exception {
         // mqtt5client {
         final Mqtt5BlockingClient client = Mqtt5Client
             .builder()

@@ -17,7 +17,15 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Container for resiliency testing using <a href="https://github.com/Shopify/toxiproxy">Toxiproxy</a>.
+ * Testcontainers implementation for Toxiproxy.
+ * <p>
+ * Supported images: {@code ghcr.io/shopify/toxiproxy}, {@code shopify/toxiproxy}
+ * <p>
+ * Exposed ports:
+ * <ul>
+ *     <li>HTTP: 8474</li>
+ *     <li>Proxied Ports: 8666-8697</li>
+ * </ul>
  */
 public class ToxiproxyContainer extends GenericContainer<ToxiproxyContainer> {
 
@@ -40,7 +48,7 @@ public class ToxiproxyContainer extends GenericContainer<ToxiproxyContainer> {
     private final AtomicInteger nextPort = new AtomicInteger(FIRST_PROXIED_PORT);
 
     /**
-     * @deprecated use {@link ToxiproxyContainer(DockerImageName)} instead
+     * @deprecated use {@link #ToxiproxyContainer(DockerImageName)} instead
      */
     @Deprecated
     public ToxiproxyContainer() {
@@ -79,13 +87,15 @@ public class ToxiproxyContainer extends GenericContainer<ToxiproxyContainer> {
 
     /**
      * Obtain a {@link ContainerProxy} instance for target container that is managed by Testcontainers. The target
-     * container should be routable from this <b>from this {@link ToxiproxyContainer} instance</b> (e.g. on the same
+     * container should be routable <b>from this {@link ToxiproxyContainer} instance</b> (e.g. on the same
      * Docker {@link Network}).
      *
      * @param container target container
      * @param port port number on the target service that should be proxied
      * @return a {@link ContainerProxy} instance
+     * @deprecated {@link ToxiproxyContainer} will not build the client. Proxies should be provided manually.
      */
+    @Deprecated
     public ContainerProxy getProxy(GenericContainer<?> container, int port) {
         return this.getProxy(container.getNetworkAliases().get(0), port);
     }
@@ -102,7 +112,9 @@ public class ToxiproxyContainer extends GenericContainer<ToxiproxyContainer> {
      * @param hostname hostname of target server to be proxied
      * @param port port number on the target server that should be proxied
      * @return a {@link ContainerProxy} instance
+     * @deprecated {@link ToxiproxyContainer} will not build the client. Proxies should be provided manually.
      */
+    @Deprecated
     public ContainerProxy getProxy(String hostname, int port) {
         String upstream = hostname + ":" + port;
 
@@ -126,6 +138,7 @@ public class ToxiproxyContainer extends GenericContainer<ToxiproxyContainer> {
     }
 
     @RequiredArgsConstructor(access = AccessLevel.PROTECTED)
+    @Deprecated
     public static class ContainerProxy {
 
         private static final String CUT_CONNECTION_DOWNSTREAM = "CUT_CONNECTION_DOWNSTREAM";

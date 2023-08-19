@@ -2,14 +2,18 @@ package org.testcontainers.containers;
 
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.containers.wait.strategy.WaitAllStrategy;
-import org.testcontainers.containers.wait.strategy.WaitStrategy;
 import org.testcontainers.utility.DockerImageName;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
- * This container wraps Apache Pulsar running in standalone mode
+ * Testcontainers implementation for Apache Pulsar.
+ * <p>
+ * Supported image: {@code apachepulsar/pulsar}
+ * <p>
+ * Exposed ports:
+ * <ul>
+ *     <li>Pulsar: 6650</li>
+ *     <li>HTTP: 8080</li>
+ * </ul>
  */
 public class PulsarContainer extends GenericContainer<PulsarContainer> {
 
@@ -34,14 +38,16 @@ public class PulsarContainer extends GenericContainer<PulsarContainer> {
     private static final DockerImageName DEFAULT_IMAGE_NAME = DockerImageName.parse("apachepulsar/pulsar");
 
     @Deprecated
-    private static final String DEFAULT_TAG = "2.10.0";
+    private static final String DEFAULT_TAG = "3.0.0";
+
+    private final WaitAllStrategy waitAllStrategy = new WaitAllStrategy();
 
     private boolean functionsWorkerEnabled = false;
 
     private boolean transactionsEnabled = false;
 
     /**
-     * @deprecated use {@link PulsarContainer(DockerImageName)} instead
+     * @deprecated use {@link #PulsarContainer(DockerImageName)} instead
      */
     @Deprecated
     public PulsarContainer() {
@@ -49,7 +55,7 @@ public class PulsarContainer extends GenericContainer<PulsarContainer> {
     }
 
     /**
-     * @deprecated use {@link PulsarContainer(DockerImageName)} instead
+     * @deprecated use {@link #PulsarContainer(DockerImageName)} instead
      */
     @Deprecated
     public PulsarContainer(String pulsarVersion) {
@@ -60,6 +66,7 @@ public class PulsarContainer extends GenericContainer<PulsarContainer> {
         super(dockerImageName);
         dockerImageName.assertCompatibleWith(DockerImageName.parse("apachepulsar/pulsar"));
         withExposedPorts(BROKER_PORT, BROKER_HTTP_PORT);
+        setWaitStrategy(waitAllStrategy);
     }
 
     @Override
@@ -96,23 +103,20 @@ public class PulsarContainer extends GenericContainer<PulsarContainer> {
 
         withCommand("/bin/bash", "-c", standaloneBaseCommand);
 
-        List<WaitStrategy> waitStrategies = new ArrayList<>();
-        waitStrategies.add(Wait.defaultWaitStrategy());
-        waitStrategies.add(
-            Wait
-                .forHttp(ADMIN_CLUSTERS_ENDPOINT)
-                .forPort(BROKER_HTTP_PORT)
-                .forResponsePredicate("[\"standalone\"]"::equals)
+        final String clusterName = getEnvMap().getOrDefault("PULSAR_PREFIX_clusterName", "standalone");
+        final String response = String.format("[\"%s\"]", clusterName);
+        waitAllStrategy.withStrategy(
+            Wait.forHttp(ADMIN_CLUSTERS_ENDPOINT).forPort(BROKER_HTTP_PORT).forResponsePredicate(response::equals)
         );
+
         if (transactionsEnabled) {
             withEnv("PULSAR_PREFIX_transactionCoordinatorEnabled", "true");
-            waitStrategies.add(Wait.forHttp(TRANSACTION_TOPIC_ENDPOINT).forStatusCode(200).forPort(BROKER_HTTP_PORT));
+            waitAllStrategy.withStrategy(
+                Wait.forHttp(TRANSACTION_TOPIC_ENDPOINT).forStatusCode(200).forPort(BROKER_HTTP_PORT)
+            );
         }
         if (functionsWorkerEnabled) {
-            waitStrategies.add(Wait.forLogMessage(".*Function worker service started.*", 1));
+            waitAllStrategy.withStrategy(Wait.forLogMessage(".*Function worker service started.*", 1));
         }
-        final WaitAllStrategy compoundedWaitStrategy = new WaitAllStrategy();
-        waitStrategies.forEach(compoundedWaitStrategy::withStrategy);
-        waitingFor(compoundedWaitStrategy);
     }
 }

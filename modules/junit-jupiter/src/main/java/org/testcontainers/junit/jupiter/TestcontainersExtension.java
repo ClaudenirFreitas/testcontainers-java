@@ -13,11 +13,12 @@ import org.junit.jupiter.api.extension.ExtensionContext.Namespace;
 import org.junit.jupiter.api.extension.ExtensionContext.Store;
 import org.junit.jupiter.api.extension.ExtensionContext.Store.CloseableResource;
 import org.junit.platform.commons.support.AnnotationSupport;
-import org.junit.platform.commons.util.AnnotationUtils;
-import org.junit.platform.commons.util.Preconditions;
-import org.junit.platform.commons.util.ReflectionUtils;
+import org.junit.platform.commons.support.HierarchyTraversalMode;
+import org.junit.platform.commons.support.ModifierSupport;
+import org.junit.platform.commons.support.ReflectionSupport;
 import org.testcontainers.DockerClientFactory;
 import org.testcontainers.lifecycle.Startable;
+import org.testcontainers.lifecycle.Startables;
 import org.testcontainers.lifecycle.TestDescription;
 import org.testcontainers.lifecycle.TestLifecycleAware;
 
@@ -32,7 +33,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-class TestcontainersExtension
+public class TestcontainersExtension
     implements BeforeEachCallback, BeforeAllCallback, AfterEachCallback, AfterAllCallback, ExecutionCondition {
 
     private static final Namespace NAMESPACE = Namespace.create(TestcontainersExtension.class);
@@ -52,9 +53,7 @@ class TestcontainersExtension
         Store store = context.getStore(NAMESPACE);
         List<StoreAdapter> sharedContainersStoreAdapters = findSharedContainers(testClass);
 
-        sharedContainersStoreAdapters.forEach(adapter -> {
-            store.getOrComputeIfAbsent(adapter.getKey(), k -> adapter.start());
-        });
+        startContainers(sharedContainersStoreAdapters, store, context);
 
         List<TestLifecycleAware> lifecycleAwareContainers = sharedContainersStoreAdapters
             .stream()
@@ -66,6 +65,24 @@ class TestcontainersExtension
         signalBeforeTestToContainers(lifecycleAwareContainers, testDescriptionFrom(context));
     }
 
+    private void startContainers(List<StoreAdapter> storeAdapters, Store store, ExtensionContext context) {
+        if (storeAdapters.isEmpty()) {
+            return;
+        }
+
+        if (isParallelExecutionEnabled(context)) {
+            Stream<Startable> startables = storeAdapters
+                .stream()
+                .map(storeAdapter -> {
+                    store.getOrComputeIfAbsent(storeAdapter.getKey(), k -> storeAdapter);
+                    return storeAdapter.container;
+                });
+            Startables.deepStart(startables).join();
+        } else {
+            storeAdapters.forEach(adapter -> store.getOrComputeIfAbsent(adapter.getKey(), k -> adapter.start()));
+        }
+    }
+
     @Override
     public void afterAll(ExtensionContext context) {
         signalAfterTestToContainersFor(SHARED_LIFECYCLE_AWARE_CONTAINERS, context);
@@ -75,16 +92,37 @@ class TestcontainersExtension
     public void beforeEach(final ExtensionContext context) {
         Store store = context.getStore(NAMESPACE);
 
-        List<TestLifecycleAware> lifecycleAwareContainers = collectParentTestInstances(context)
+        List<StoreAdapter> restartContainers = collectParentTestInstances(context)
             .parallelStream()
             .flatMap(this::findRestartContainers)
-            .peek(adapter -> store.getOrComputeIfAbsent(adapter.getKey(), k -> adapter.start()))
-            .filter(this::isTestLifecycleAware)
-            .map(lifecycleAwareAdapter -> (TestLifecycleAware) lifecycleAwareAdapter.container)
             .collect(Collectors.toList());
+
+        List<TestLifecycleAware> lifecycleAwareContainers = findTestLifecycleAwareContainers(
+            restartContainers,
+            store,
+            context
+        );
 
         store.put(LOCAL_LIFECYCLE_AWARE_CONTAINERS, lifecycleAwareContainers);
         signalBeforeTestToContainers(lifecycleAwareContainers, testDescriptionFrom(context));
+    }
+
+    private List<TestLifecycleAware> findTestLifecycleAwareContainers(
+        List<StoreAdapter> restartContainers,
+        Store store,
+        ExtensionContext context
+    ) {
+        startContainers(restartContainers, store, context);
+
+        return restartContainers
+            .stream()
+            .filter(this::isTestLifecycleAware)
+            .map(lifecycleAwareAdapter -> (TestLifecycleAware) lifecycleAwareAdapter.container)
+            .collect(Collectors.toList());
+    }
+
+    private boolean isParallelExecutionEnabled(ExtensionContext context) {
+        return findTestcontainers(context).map(Testcontainers::parallel).orElse(false);
     }
 
     @Override
@@ -131,7 +169,7 @@ class TestcontainersExtension
     private Optional<Testcontainers> findTestcontainers(ExtensionContext context) {
         Optional<ExtensionContext> current = Optional.of(context);
         while (current.isPresent()) {
-            Optional<Testcontainers> testcontainers = AnnotationUtils.findAnnotation(
+            Optional<Testcontainers> testcontainers = AnnotationSupport.findAnnotation(
                 current.get().getRequiredTestClass(),
                 Testcontainers.class
             );
@@ -169,26 +207,26 @@ class TestcontainersExtension
     }
 
     private List<StoreAdapter> findSharedContainers(Class<?> testClass) {
-        return ReflectionUtils
-            .findFields(testClass, isSharedContainer(), ReflectionUtils.HierarchyTraversalMode.TOP_DOWN)
+        return ReflectionSupport
+            .findFields(testClass, isSharedContainer(), HierarchyTraversalMode.TOP_DOWN)
             .stream()
             .map(f -> getContainerInstance(null, f))
             .collect(Collectors.toList());
     }
 
     private Predicate<Field> isSharedContainer() {
-        return isContainer().and(ReflectionUtils::isStatic);
+        return isContainer().and(ModifierSupport::isStatic);
     }
 
     private Stream<StoreAdapter> findRestartContainers(Object testInstance) {
-        return ReflectionUtils
-            .findFields(testInstance.getClass(), isRestartContainer(), ReflectionUtils.HierarchyTraversalMode.TOP_DOWN)
+        return ReflectionSupport
+            .findFields(testInstance.getClass(), isRestartContainer(), HierarchyTraversalMode.TOP_DOWN)
             .stream()
             .map(f -> getContainerInstance(testInstance, f));
     }
 
     private Predicate<Field> isRestartContainer() {
-        return isContainer().and(ReflectionUtils::isNotStatic);
+        return isContainer().and(ModifierSupport::isNotStatic);
     }
 
     private static Predicate<Field> isContainer() {
@@ -211,10 +249,10 @@ class TestcontainersExtension
     private static StoreAdapter getContainerInstance(final Object testInstance, final Field field) {
         try {
             field.setAccessible(true);
-            Startable containerInstance = Preconditions.notNull(
-                (Startable) field.get(testInstance),
-                "Container " + field.getName() + " needs to be initialized"
-            );
+            Startable containerInstance = (Startable) field.get(testInstance);
+            if (containerInstance == null) {
+                throw new ExtensionConfigurationException("Container " + field.getName() + " needs to be initialized");
+            }
             return new StoreAdapter(field.getDeclaringClass(), field.getName(), containerInstance);
         } catch (IllegalAccessException e) {
             throw new ExtensionConfigurationException("Can not access container defined in field " + field.getName());
